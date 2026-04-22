@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	baseURL    = "https://api.monarchmoney.com"
-	gqlURL     = baseURL + "/graphql"
-	loginURL   = baseURL + "/auth/login/"
+	baseURL  = "https://api.monarch.com"
+	gqlURL   = baseURL + "/graphql"
+	loginURL = baseURL + "/auth/login/"
 )
 
 type Client struct {
-	token  string
-	http   *http.Client
+	token string
+	http  *http.Client
 }
 
 func NewClient(token string) *Client {
@@ -71,8 +71,15 @@ func query[T any](c *Client, q string, vars map[string]any) (T, error) {
 	if err != nil {
 		return zero, err
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Token "+c.token)
+	req.Header.Set("Origin", "https://app.monarch.com")
+	req.Header.Set("Referer", "https://app.monarch.com/")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("client-platform", "web")
+	req.Header.Set("monarch-client", "monarch-core-web-app-graphql")
+	req.Header.Set("monarch-client-version", "v1.0.2145")
 
 	resp, err := c.http.Do(req)
 	if err != nil {

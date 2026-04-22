@@ -8,5 +8,5 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o monarch-mcp .
 FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/monarch-mcp /monarch-mcp
-EXPOSE 8080
+EXPOSE 8141
 ENTRYPOINT ["/monarch-mcp"]

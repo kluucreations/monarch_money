@@ -22,8 +22,8 @@ docker-build:
 docker-clean:
 	docker rmi $(IMAGE):latest
 
-docker-push:
+docker-push: docker-build
 	docker push $(IMAGE):latest
 
 docker-run:
-	docker run -d -p 8080:8080 -e MONARCH_TOKEN=$(MONARCH_TOKEN) $(IMAGE):latest
+	docker run -d -p $(PORT):$(PORT) -e MONARCH_TOKEN=$(MONARCH_TOKEN) -e OAUTH_CLIENT_SECRET=$(OAUTH_CLIENT_SECRET) -e PORT=$(PORT) -e BASE_URL=$(BASE_URL) $(IMAGE):latest
