@@ -55,10 +55,12 @@ func TestCodeStore(t *testing.T) {
 	}
 }
 
+const testClientSecret = "test-client-secret"
+
 func newOAuthMux(t *testing.T) (*http.ServeMux, string) {
 	t.Helper()
 	mux := http.NewServeMux()
-	registerOAuthHandlers(mux, "test-monarch-token", "https://example.com")
+	registerOAuthHandlers(mux, "test-monarch-token", testClientSecret, "https://example.com")
 	return mux, "test-monarch-token"
 }
 
@@ -162,6 +164,7 @@ func TestFullOAuthPKCEFlow(t *testing.T) {
 		"code":          {code},
 		"code_verifier": {verifier},
 		"redirect_uri":  {redirectURI},
+		"client_secret": {testClientSecret},
 	}
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, tokenRequest(form))
@@ -200,6 +203,7 @@ func TestTokenRejectsWrongVerifier(t *testing.T) {
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
 		"code_verifier": {"wrong-verifier"},
+		"client_secret": {testClientSecret},
 	}
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, tokenRequest(form))
@@ -228,6 +232,7 @@ func TestTokenRejectsUsedCode(t *testing.T) {
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
 		"code_verifier": {verifier},
+		"client_secret": {testClientSecret},
 	}
 
 	// First use: should succeed
@@ -242,6 +247,36 @@ func TestTokenRejectsUsedCode(t *testing.T) {
 	mux.ServeHTTP(rec, tokenRequest(form))
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("got %d, want 400 for reused code", rec.Code)
+	}
+}
+
+func TestTokenRejectsWrongClientSecret(t *testing.T) {
+	mux, _ := newOAuthMux(t)
+
+	verifier := "test-verifier-long-enough-for-pkce-spec"
+	challenge := pkceChallenge(verifier)
+	redirectURI := "https://claude.ai/callback"
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET",
+		"/authorize?client_id=monarch-mcp&redirect_uri="+url.QueryEscape(redirectURI)+
+			"&code_challenge="+challenge+"&code_challenge_method=S256", nil))
+
+	parsed, _ := url.Parse(rec.Header().Get("Location"))
+	code := parsed.Query().Get("code")
+
+	for _, secret := range []string{"", "wrong-secret"} {
+		form := url.Values{
+			"grant_type":    {"authorization_code"},
+			"code":          {code},
+			"code_verifier": {verifier},
+			"client_secret": {secret},
+		}
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, tokenRequest(form))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("client_secret=%q: got %d, want 401", secret, rec.Code)
+		}
 	}
 }
 

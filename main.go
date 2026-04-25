@@ -21,6 +21,11 @@ func main() {
 		log.Fatal("MONARCH_TOKEN env var is required")
 	}
 
+	clientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
+	if clientSecret == "" {
+		log.Fatal("OAUTH_CLIENT_SECRET env var is required")
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -36,7 +41,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	registerOAuthHandlers(mux, monarchToken, baseURL)
+	registerOAuthHandlers(mux, monarchToken, clientSecret, baseURL)
 	registerMCPHandlers(mux, s, baseURL)
 
 	log.Printf("monarch-money MCP server listening on :%s", port)

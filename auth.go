@@ -49,7 +49,7 @@ func pkceVerify(verifier, challenge string) bool {
 	return computed == challenge
 }
 
-func registerOAuthHandlers(mux *http.ServeMux, monarchToken, baseURL string) {
+func registerOAuthHandlers(mux *http.ServeMux, monarchToken, clientSecret, baseURL string) {
 	store := &codeStore{codes: make(map[string]authCode)}
 
 	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +123,11 @@ func registerOAuthHandlers(mux *http.ServeMux, monarchToken, baseURL string) {
 
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
+
+		if r.FormValue("client_secret") != clientSecret {
+			http.Error(w, "invalid client_secret", http.StatusUnauthorized)
 			return
 		}
 
