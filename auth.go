@@ -53,14 +53,15 @@ func registerOAuthHandlers(mux *http.ServeMux, monarchToken, clientSecret, baseU
 	store := &codeStore{codes: make(map[string]authCode)}
 
 	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[oauth] metadata requested from %s", r.RemoteAddr)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                 baseURL,
-			"authorization_endpoint": baseURL + "/authorize",
-			"token_endpoint":         baseURL + "/token",
-			"response_types_supported": []string{"code"},
-			"grant_types_supported":    []string{"authorization_code"},
+			"issuer":                           baseURL,
+			"authorization_endpoint":           baseURL + "/authorize",
+			"token_endpoint":                   baseURL + "/token",
+			"response_types_supported":         []string{"code"},
+			"grant_types_supported":            []string{"authorization_code"},
 			"code_challenge_methods_supported": []string{"S256"},
 		})
 	})
@@ -73,21 +74,32 @@ func registerOAuthHandlers(mux *http.ServeMux, monarchToken, clientSecret, baseU
 		method := q.Get("code_challenge_method")
 		state := q.Get("state")
 
+		log.Printf("[oauth/authorize] client_id=%s redirect_uri=%s method=%s state=%s", clientID, redirectURI, method, state)
+
 		if clientID != oauthClientID {
+			log.Printf("[oauth/authorize] rejected: unknown client_id=%s", clientID)
 			http.Error(w, "unknown client_id", http.StatusBadRequest)
 			return
 		}
 		if challenge == "" || method != "S256" {
+			log.Printf("[oauth/authorize] rejected: bad PKCE params challenge=%q method=%q", challenge, method)
 			http.Error(w, "PKCE S256 required", http.StatusBadRequest)
 			return
 		}
 		if redirectURI == "" {
+			log.Printf("[oauth/authorize] rejected: missing redirect_uri")
 			http.Error(w, "redirect_uri required", http.StatusBadRequest)
+			return
+		}
+		if !strings.HasPrefix(redirectURI, "https://claude.ai/") {
+			log.Printf("[oauth/authorize] rejected: redirect_uri not allowed: %s", redirectURI)
+			http.Error(w, "redirect_uri not allowed", http.StatusBadRequest)
 			return
 		}
 
 		b := make([]byte, 16)
 		if _, err := rand.Read(b); err != nil {
+			log.Printf("[oauth/authorize] failed to generate code: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -99,7 +111,7 @@ func registerOAuthHandlers(mux *http.ServeMux, monarchToken, clientSecret, baseU
 			expiresAt:   time.Now().Add(5 * time.Minute),
 		})
 
-		log.Printf("[oauth] issued code for client=%s redirect=%s", clientID, redirectURI)
+		log.Printf("[oauth/authorize] issued code=%s... for client=%s redirect=%s", code[:6], clientID, redirectURI)
 
 		redirect := fmt.Sprintf("%s?code=%s", redirectURI, code)
 		if state != "" {
@@ -122,17 +134,28 @@ func registerOAuthHandlers(mux *http.ServeMux, monarchToken, clientSecret, baseU
 		}
 
 		if err := r.ParseForm(); err != nil {
+			log.Printf("[oauth/token] failed to parse form: %v", err)
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
 
-		if r.FormValue("client_secret") != clientSecret {
-			http.Error(w, "invalid client_secret", http.StatusUnauthorized)
-			return
+		log.Printf("[oauth/token] grant_type=%s code=%s verifier_len=%d auth_header=%s",
+			r.FormValue("grant_type"),
+			obfuscate(r.FormValue("code")),
+			len(r.FormValue("code_verifier")),
+			obfuscate(r.Header.Get("Authorization")),
+		)
+
+		// Log what client secret Claude is sending (for debugging).
+		secret := r.FormValue("client_secret")
+		if secret == "" {
+			_, secret, _ = r.BasicAuth()
 		}
+		log.Printf("[oauth/token] client_secret from client=%s server=%s", secret, obfuscate(clientSecret))
 
 		grantType := r.FormValue("grant_type")
 		if grantType != "authorization_code" {
+			log.Printf("[oauth/token] rejected: unsupported grant_type=%s", grantType)
 			http.Error(w, "unsupported grant_type", http.StatusBadRequest)
 			return
 		}
@@ -142,26 +165,30 @@ func registerOAuthHandlers(mux *http.ServeMux, monarchToken, clientSecret, baseU
 
 		ac, ok := store.take(code)
 		if !ok {
+			log.Printf("[oauth/token] rejected: code not found or already used")
 			http.Error(w, "invalid or expired code", http.StatusBadRequest)
 			return
 		}
 		if time.Now().After(ac.expiresAt) {
+			log.Printf("[oauth/token] rejected: code expired")
 			http.Error(w, "code expired", http.StatusBadRequest)
 			return
 		}
 
 		redirectURI := r.FormValue("redirect_uri")
 		if redirectURI != "" && !strings.HasPrefix(ac.redirectURI, strings.Split(redirectURI, "?")[0]) {
+			log.Printf("[oauth/token] rejected: redirect_uri mismatch got=%s stored=%s", redirectURI, ac.redirectURI)
 			http.Error(w, "redirect_uri mismatch", http.StatusBadRequest)
 			return
 		}
 
 		if !pkceVerify(verifier, ac.challenge) {
+			log.Printf("[oauth/token] rejected: code_verifier mismatch")
 			http.Error(w, "code_verifier mismatch", http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("[oauth] token issued")
+		log.Printf("[oauth/token] success — issuing access token")
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")

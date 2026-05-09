@@ -22,9 +22,6 @@ func main() {
 	}
 
 	clientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
-	if clientSecret == "" {
-		log.Fatal("OAUTH_CLIENT_SECRET env var is required")
-	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -35,6 +32,11 @@ func main() {
 	if baseURL == "" {
 		baseURL = fmt.Sprintf("http://0.0.0.0:%s", port)
 	}
+
+	log.Printf("[config] MONARCH_TOKEN=%s", obfuscate(monarchToken))
+	log.Printf("[config] OAUTH_CLIENT_SECRET=%s", obfuscate(clientSecret))
+	log.Printf("[config] BASE_URL=%s", baseURL)
+	log.Printf("[config] PORT=%s", port)
 
 	s := server.NewMCPServer("monarch-money", "1.0.0", server.WithToolCapabilities(false))
 	registerTools(s, monarchToken)
@@ -48,6 +50,16 @@ func main() {
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+func obfuscate(s string) string {
+	if len(s) == 0 {
+		return "(not set)"
+	}
+	if len(s) <= 8 {
+		return "****"
+	}
+	return s[:4] + "..." + s[len(s)-4:]
 }
 
 func registerMCPHandlers(mux *http.ServeMux, s *server.MCPServer, baseURL string) {
