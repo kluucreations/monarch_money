@@ -184,11 +184,19 @@ func (c *Client) GetBudgets(startDate, endDate string) (BudgetsData, error) {
 }
 
 func (c *Client) GetNetWorth() (NetWorthData, error) {
-	const q = `query GetNetWorth {
-		netWorthSummary {
-			netWorth
-			breakdown { type balance percent }
+	const q = `query GetNetWorth($filters: AggregateSnapshotFilters) {
+		aggregateSnapshots(filters: $filters) {
+			date
+			balance
+			assetsBalance
+			liabilitiesBalance
 		}
 	}`
-	return query[NetWorthData](c, q, nil)
+	today := time.Now().Format("2006-01-02")
+	return query[NetWorthData](c, q, map[string]any{
+		"filters": map[string]any{
+			"startDate": today,
+			"endDate":   today,
+		},
+	})
 }

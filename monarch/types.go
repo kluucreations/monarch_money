@@ -170,16 +170,12 @@ type MonthlyBudget struct {
 // Net worth
 
 type NetWorthData struct {
-	NetWorthSummary NetWorthSummary `json:"netWorthSummary"`
+	Snapshots []AggregateSnapshot `json:"aggregateSnapshots"`
 }
 
-type NetWorthSummary struct {
-	NetWorth  float64          `json:"netWorth"`
-	Breakdown []NetWorthItem   `json:"breakdown"`
-}
-
-type NetWorthItem struct {
-	Type     string  `json:"type"`
-	Balance  float64 `json:"balance"`
-	Percent  float64 `json:"percent"`
+type AggregateSnapshot struct {
+	Date               string  `json:"date"`
+	Balance            float64 `json:"balance"`
+	AssetsBalance      float64 `json:"assetsBalance"`
+	LiabilitiesBalance float64 `json:"liabilitiesBalance"`
 }

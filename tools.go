@@ -101,7 +101,7 @@ func registerTools(s *server.MCPServer, c *monarch.Client) {
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			return jsonResult(data.NetWorthSummary)
+			return jsonResult(data.Snapshots)
 		},
 	)
 }

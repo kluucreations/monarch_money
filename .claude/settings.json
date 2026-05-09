@@ -4,7 +4,8 @@
       "Bash",
       "Write",
       "Edit",
-      "mcp__claude_ai_memos_mcp__get_memo"
+      "mcp__claude_ai_memos_mcp__get_memo",
+      "WebFetch(domain:monarch-graphql.ajzbc.com)"
     ]
   }
 }
