@@ -11,16 +11,12 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func registerTools(s *server.MCPServer, _ string) {
+func registerTools(s *server.MCPServer, c *monarch.Client) {
 	s.AddTool(
 		mcp.NewTool("get_accounts",
 			mcp.WithDescription("List all financial accounts linked to Monarch Money, including balances and account types."),
 		),
-		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			c, err := clientFromContext(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+		func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			data, err := c.GetAccounts()
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -37,11 +33,7 @@ func registerTools(s *server.MCPServer, _ string) {
 			mcp.WithString("limit", mcp.Description("Maximum number of transactions to return (default 100)")),
 			mcp.WithString("offset", mcp.Description("Number of transactions to skip for pagination (default 0)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			c, err := clientFromContext(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			start := req.GetString("start_date", "")
 			end := req.GetString("end_date", "")
 			limit := parseInt(req.GetString("limit", "100"), 100)
@@ -64,11 +56,7 @@ func registerTools(s *server.MCPServer, _ string) {
 			mcp.WithString("start_date", mcp.Description("Start date (YYYY-MM-DD)")),
 			mcp.WithString("end_date", mcp.Description("End date (YYYY-MM-DD)")),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			c, err := clientFromContext(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			start := req.GetString("start_date", "")
 			end := req.GetString("end_date", "")
 
@@ -92,11 +80,7 @@ func registerTools(s *server.MCPServer, _ string) {
 				mcp.Required(),
 			),
 		),
-		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			c, err := clientFromContext(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			start := req.GetString("start_date", "")
 			end := req.GetString("end_date", "")
 
@@ -112,11 +96,7 @@ func registerTools(s *server.MCPServer, _ string) {
 		mcp.NewTool("get_net_worth",
 			mcp.WithDescription("Get current net worth and asset/liability breakdown."),
 		),
-		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			c, err := clientFromContext(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+		func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			data, err := c.GetNetWorth()
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -124,14 +104,6 @@ func registerTools(s *server.MCPServer, _ string) {
 			return jsonResult(data.NetWorthSummary)
 		},
 	)
-}
-
-func clientFromContext(ctx context.Context) (*monarch.Client, error) {
-	token, ok := ctx.Value(monarchTokenKey).(string)
-	if !ok || token == "" {
-		return nil, fmt.Errorf("no monarch token in request context")
-	}
-	return monarch.NewClient(token), nil
 }
 
 func jsonResult(v any) (*mcp.CallToolResult, error) {

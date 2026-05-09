@@ -3,7 +3,8 @@
     "allow": [
       "Bash",
       "Write",
-      "Edit"
+      "Edit",
+      "mcp__claude_ai_memos_mcp__get_memo"
     ]
   }
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -71,30 +70,3 @@ func TestJsonResultIsIndented(t *testing.T) {
 		t.Error("expected indented JSON output")
 	}
 }
-
-func TestClientFromContextMissingToken(t *testing.T) {
-	_, err := clientFromContext(context.Background())
-	if err == nil {
-		t.Error("expected error when no token in context")
-	}
-}
-
-func TestClientFromContextWithToken(t *testing.T) {
-	ctx := context.WithValue(context.Background(), monarchTokenKey, "mytoken")
-	c, err := clientFromContext(ctx)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if c == nil {
-		t.Error("expected non-nil client")
-	}
-}
-
-func TestClientFromContextEmptyToken(t *testing.T) {
-	ctx := context.WithValue(context.Background(), monarchTokenKey, "")
-	_, err := clientFromContext(ctx)
-	if err == nil {
-		t.Error("expected error for empty token")
-	}
-}
-

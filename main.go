@@ -1,107 +1,22 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
-	"net/http"
-	"os"
-	"strings"
 
+	"github.com/kluu/monarch-mcp/monarch"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-type contextKey string
-
-const monarchTokenKey contextKey = "monarch_token"
+var monarchToken string
 
 func main() {
-	monarchToken := os.Getenv("MONARCH_TOKEN")
 	if monarchToken == "" {
-		log.Fatal("MONARCH_TOKEN env var is required")
+		log.Fatal("MONARCH_TOKEN not set at build time")
 	}
-
-	clientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		baseURL = fmt.Sprintf("http://0.0.0.0:%s", port)
-	}
-
-	log.Printf("[config] MONARCH_TOKEN=%s", obfuscate(monarchToken))
-	log.Printf("[config] OAUTH_CLIENT_SECRET=%s", obfuscate(clientSecret))
-	log.Printf("[config] BASE_URL=%s", baseURL)
-	log.Printf("[config] PORT=%s", port)
 
 	s := server.NewMCPServer("monarch-money", "1.0.0", server.WithToolCapabilities(false))
-	registerTools(s, monarchToken)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", healthHandler)
-	registerOAuthHandlers(mux, monarchToken, clientSecret, baseURL)
-	registerMCPHandlers(mux, s, baseURL)
-
-	log.Printf("monarch-money MCP server listening on :%s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	registerTools(s, monarch.NewClient(monarchToken))
+	if err := server.ServeStdio(s); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
-}
-
-func obfuscate(s string) string {
-	if len(s) == 0 {
-		return "(not set)"
-	}
-	if len(s) <= 8 {
-		return "****"
-	}
-	return s[:4] + "..." + s[len(s)-4:]
-}
-
-func registerMCPHandlers(mux *http.ServeMux, s *server.MCPServer, baseURL string) {
-	streamable := server.NewStreamableHTTPServer(s, server.WithEndpointPath("/mcp"))
-	mux.Handle("/mcp", withCORS(withAuth(streamable)))
-	mux.Handle("/mcp/", withCORS(withAuth(streamable)))
-
-	sse := server.NewSSEServer(s, server.WithBaseURL(baseURL))
-	mux.Handle("/sse", withCORS(withAuth(sse)))
-	mux.Handle("/message", withCORS(withAuth(sse)))
-}
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"status":"ok","server":"monarch-money"}`)
-}
-
-func withAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		token := strings.TrimPrefix(auth, "Bearer ")
-		if token == "" || token == auth {
-			log.Printf("[auth] missing or invalid Authorization header")
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		log.Printf("[auth] token received: %s...%s", token[:4], token[len(token)-4:])
-		ctx := context.WithValue(r.Context(), monarchTokenKey, token)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func withCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[%s] %s", r.Method, r.URL.Path)
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Mcp-Session-Id")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
