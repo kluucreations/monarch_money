@@ -4,7 +4,7 @@ GO ?= $(shell which go 2>/dev/null || echo /usr/local/go/bin/go)
 -include .env.local
 export
 
-.PHONY: build clean
+.PHONY: build clean push
 
 build:
 	mkdir -p dist
@@ -12,3 +12,7 @@ build:
 
 clean:
 	rm -rf dist/
+
+push: build
+	mv $(BINARY) /mnt/mcp/
+
